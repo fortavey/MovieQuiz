@@ -16,13 +16,15 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
     private var currentQuestion: QuizQuestion?
     
     private var alertPresenter: AlertPresenterProtocol?
+    private var statisticService: StatisticServiceProtocol?
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
         questionFactory = QuestionFactory(delegate: self)
-        alertPresenter = AlertPresenter(delegate: self)
+        alertPresenter = AlertPresenter()
+        statisticService = StatisticService()
         
         questionFactory?.requestNextQuestion()
         
@@ -53,9 +55,23 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
     // MARK: - Alert
     
     func showAlert() {
+        guard let statisticService else { return }
+        
+        statisticService.store(correct: correctAnswers, total: questionsAmount)
+        
+        let df = DateFormatter()
+        df.dateFormat = "dd.MM.YY hh:mm"
+        
+        let message = """
+                Ваш результат \(correctAnswers)/\(questionsAmount)
+                Количество сыгранных квизов: \(statisticService.gamesCount)
+                Рекорд: \(statisticService.bestGame.correct)/\(questionsAmount) (\(df.string(from: statisticService.bestGame.date)))
+                Средняя точность: \(String(format: "%.2f", statisticService.totalAccuracy))%
+            """
+        
         let model = AlertModel(
             title: "Этот раунд окончен!",
-            message: "Ваш результат \(correctAnswers)/\(questionsAmount)",
+            message: message,
             buttonText: "Сыграть ещё раз",
             completion: {
                 self.resetAll()

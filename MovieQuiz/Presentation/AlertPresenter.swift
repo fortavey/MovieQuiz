@@ -10,11 +10,11 @@ import UIKit
 
 class AlertPresenter: AlertPresenterProtocol {
     
-    var delegate: AlertPresenterDelegate?
-    
-    init(delegate: AlertPresenterDelegate? = nil) {
-        self.delegate = delegate
-    }
+//    var delegate: AlertPresenterDelegate?
+//    
+//    init(delegate: AlertPresenterDelegate? = nil) {
+//        self.delegate = delegate
+//    }
     
     func show(quiz result: AlertModel) -> UIAlertController {
         let alert = UIAlertController(
