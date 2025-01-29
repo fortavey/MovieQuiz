@@ -3,7 +3,8 @@ import Foundation
 class QuestionFactory: QuestionFactoryProtocol {
     weak var delegate: QuestionFactoryDelegate?
     private let moviesLoader: MoviesLoading
-    private var movies: [MostPopularMovie] = []
+    var fullMoviesResponseObject: MostPopularMovies?
+    var movies: [MostPopularMovie] = []
     
     init(moviesLoader: MoviesLoading, delegate: QuestionFactoryDelegate?) {
         self.moviesLoader = moviesLoader
@@ -16,6 +17,7 @@ class QuestionFactory: QuestionFactoryProtocol {
                 guard let self = self else { return }
                 switch result {
                 case .success(let mostPopularMovies):
+                    self.fullMoviesResponseObject = mostPopularMovies
                     self.movies = mostPopularMovies.items
                     self.delegate?.didLoadDataFromServer()
                 case .failure(let error):
