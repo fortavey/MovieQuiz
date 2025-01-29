@@ -1,98 +1,94 @@
+import Foundation
 import UIKit
 
-struct QuizQuestion {
-    let image: String
-    let text: String
-    let correctAnswer: Bool
-}
-
-struct QuizStepViewModel {
-  let image: UIImage
-  let question: String
-  let questionNumber: String
-}
-
-struct QuizResultsViewModel {
-  let title: String
-  let text: String
-  let buttonText: String
-}
-
-final class MovieQuizViewController: UIViewController {
-    private let questions: [QuizQuestion] = [
-        QuizQuestion(
-            image: "The Godfather",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: true
-        ),
-        QuizQuestion(
-            image: "The Dark Knight",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: true
-        ),
-        QuizQuestion(
-            image: "Kill Bill",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: true
-        ),
-        QuizQuestion(
-            image: "The Avengers",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: true
-        ),
-        QuizQuestion(
-            image: "Deadpool",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: true
-        ),
-        QuizQuestion(
-            image: "The Green Knight",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: true
-        ),
-        QuizQuestion(
-            image: "Old",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: false
-        ),
-        QuizQuestion(
-            image: "The Ice Age Adventures of Buck Wild",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: false
-        ),
-        QuizQuestion(
-            image: "Tesla",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: false
-        ),
-        QuizQuestion(
-            image: "Vivarium",
-            text: "Рейтинг этого фильма больше чем 6?",
-            correctAnswer: false
-        ),
-    ]
-
+final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, AlertPresenterDelegate {
+    
     @IBOutlet private var questionWord: UILabel!
     @IBOutlet private var counterLabel: UILabel!
     @IBOutlet private var textLabel: UILabel!
     @IBOutlet private var imageView: UIImageView!
     
     private var currentQuestionIndex = 0
-    private var correctAnswers = 0
+    var correctAnswers = 0
+    
+    let questionsAmount: Int = 10
+    private var questionFactory: QuestionFactoryProtocol?
+    private var currentQuestion: QuizQuestion?
+    
+    private var alertPresenter: AlertPresenterProtocol?
+    private var statisticService: StatisticServiceProtocol?
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
+        questionFactory = QuestionFactory(delegate: self)
+        alertPresenter = AlertPresenter()
+        statisticService = StatisticService()
+        
+        questionFactory?.requestNextQuestion()
+        
         // Присвоение правильных шрифтов для Label (косяк Xcode16)
         initFonts()
         
         // Отрисовка первого вопроса
-        show(quiz: convert(model: questions[currentQuestionIndex]))
+       
         
         imageView.layer.cornerRadius = 20
         imageView.layer.masksToBounds = true
     }
+    
+    // MARK: - QuestionFactoryDelegate
+
+    func didReceiveNextQuestion(question: QuizQuestion?) {
+        guard let question else {return}
+        
+        currentQuestion = question
+        let viewModel = convert(model: question)
+        
+        DispatchQueue.main.async { [weak self] in
+            self?.show(quiz: viewModel)
+        }
+    }
+    
+    
+    // MARK: - Alert
+    
+    func showAlert() {
+        guard let statisticService else { return }
+        
+        statisticService.store(correct: correctAnswers, total: questionsAmount)
+        
+        let df = DateFormatter()
+        df.dateFormat = "dd.MM.YY hh:mm"
+        
+        let message = """
+                Ваш результат \(correctAnswers)/\(questionsAmount)
+                Количество сыгранных квизов: \(statisticService.gamesCount)
+                Рекорд: \(statisticService.bestGame.correct)/\(questionsAmount) (\(df.string(from: statisticService.bestGame.date)))
+                Средняя точность: \(String(format: "%.2f", statisticService.totalAccuracy))%
+            """
+        
+        let model = AlertModel(
+            title: "Этот раунд окончен!",
+            message: message,
+            buttonText: "Сыграть ещё раз",
+            completion: {
+                self.resetAll()
+            }
+        )
+        
+        guard let alertPresenter else { return }
+        self.present(alertPresenter.show(quiz: model), animated: true, completion: nil)
+    }
+    
+    func resetAll() {
+        self.currentQuestionIndex = 0
+        self.correctAnswers = 0
+        self.hideBorder()
+        self.questionFactory?.requestNextQuestion()
+    }
+    
     
     private func initFonts() {
         questionWord.font = UIFont(name: "YSDisplay-Medium", size: 20)
@@ -110,39 +106,17 @@ final class MovieQuizViewController: UIViewController {
         return QuizStepViewModel(
             image: UIImage(named: model.image) ?? UIImage(),
             question: model.text,
-            questionNumber: "\(currentQuestionIndex + 1)/\(questions.count)"
+            questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)"
         )
     }
-    
-    
-    private func show(quiz result: QuizResultsViewModel) -> UIAlertController {
-        let alert = UIAlertController(
-            title: result.title,
-            message: result.text,
-            preferredStyle: .alert
-        )
-        
-        let action = UIAlertAction(title: result.buttonText, style: .default) { _ in
-            self.currentQuestionIndex = 0
-            self.correctAnswers = 0
-            self.hideBorder()
-            self.show(quiz: self.convert(model: self.questions[self.currentQuestionIndex]))
-        }
-        alert.addAction(action)
-        
-        return alert
-    }
+ 
     
     private func showNextQuestionOrResults() {
-        if currentQuestionIndex == questions.count - 1 {
-            self.present(show(quiz: QuizResultsViewModel(
-                title: "Этот раунд окончен!",
-                text: "Ваш результат \(correctAnswers)/\(questions.count)",
-                buttonText: "Сыграть ещё раз"
-            )), animated: true, completion: nil)
+        if currentQuestionIndex == questionsAmount - 1 {
+            self.showAlert()
         } else {
             currentQuestionIndex += 1
-            show(quiz: convert(model: questions[currentQuestionIndex]))
+            questionFactory?.requestNextQuestion()
             hideBorder()
         }
     }
@@ -161,13 +135,15 @@ final class MovieQuizViewController: UIViewController {
             correctAnswers += 1
         }
         changeBorder(isCorrect: isCorrect)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {[weak self] in
+            guard let self else { return }
             self.showNextQuestionOrResults()
         }
     }
     
     private func userAnsverHandler(userAnsver: Bool) {
-        let correctAnsver: Bool = questions[currentQuestionIndex].correctAnswer
+        guard let currentQuestion else {return}
+        let correctAnsver: Bool = currentQuestion.correctAnswer
         showAnswerResult(isCorrect: correctAnsver == userAnsver)
     }
     
