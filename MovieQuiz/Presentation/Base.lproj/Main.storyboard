@@ -42,7 +42,7 @@
                                             </label>
                                         </subviews>
                                     </stackView>
-                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" image="Vivarium" translatesAutoresizingMaskIntoConstraints="NO" id="SvM-mk-fus" userLabel="Preview Image">
+                                    <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFill" horizontalHuggingPriority="251" verticalHuggingPriority="251" translatesAutoresizingMaskIntoConstraints="NO" id="SvM-mk-fus" userLabel="Preview Image">
                                         <rect key="frame" x="0.0" y="43.5" width="374" height="561"/>
                                         <color key="backgroundColor" name="YP White"/>
                                         <constraints>
@@ -112,6 +112,9 @@
                                     <constraint firstItem="SvM-mk-fus" firstAttribute="leading" secondItem="lW8-HR-goN" secondAttribute="leading" id="mjI-Cy-fQH"/>
                                 </constraints>
                             </stackView>
+                            <activityIndicatorView opaque="NO" contentMode="scaleToFill" horizontalHuggingPriority="750" verticalHuggingPriority="750" style="medium" translatesAutoresizingMaskIntoConstraints="NO" id="2xq-90-ubV">
+                                <rect key="frame" x="197" y="438" width="20" height="20"/>
+                            </activityIndicatorView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                         <color key="backgroundColor" name="YP Black"/>
@@ -119,10 +122,13 @@
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="trailing" secondItem="lW8-HR-goN" secondAttribute="trailing" constant="20" id="cZh-oh-OFw"/>
                             <constraint firstItem="lW8-HR-goN" firstAttribute="top" secondItem="6Tk-OE-BBY" secondAttribute="top" constant="10" id="efd-ah-JwV"/>
                             <constraint firstItem="lW8-HR-goN" firstAttribute="leading" secondItem="6Tk-OE-BBY" secondAttribute="leading" constant="20" id="mlL-nn-GA9"/>
+                            <constraint firstItem="2xq-90-ubV" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="vDg-nk-jUe"/>
                             <constraint firstItem="6Tk-OE-BBY" firstAttribute="bottom" secondItem="lW8-HR-goN" secondAttribute="bottom" id="xe9-uF-yhu"/>
+                            <constraint firstItem="2xq-90-ubV" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="y0u-oU-Xxp"/>
                         </constraints>
                     </view>
                     <connections>
+                        <outlet property="activityIndicator" destination="2xq-90-ubV" id="4a3-Cw-Qal"/>
                         <outlet property="counterLabel" destination="Dcu-uo-OjR" id="Hof-AL-6bi"/>
                         <outlet property="imageView" destination="SvM-mk-fus" id="ph1-AL-rdw"/>
                         <outlet property="questionWord" destination="ZIL-db-eWF" id="4p8-1Q-i7Y"/>
@@ -135,7 +141,6 @@
         </scene>
     </scenes>
     <resources>
-        <image name="Vivarium" width="540" height="800"/>
         <namedColor name="YP Black">
             <color red="0.10196078431372549" green="0.10588235294117647" blue="0.13333333333333333" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>
