@@ -2,14 +2,34 @@ import Foundation
 import UIKit
 
 final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, AlertPresenterDelegate {
+    func didLoadDataFromServer() {
+        guard let questionFactory else { return }
+        if questionFactory.fullMoviesResponseObject?.errorMessage != "" {
+            activityIndicator.isHidden = true
+            showNetworkError(message: questionFactory.fullMoviesResponseObject?.errorMessage ?? "Ошибка сервера")
+        }else {
+            hideLoadingIndicator()
+            questionFactory.requestNextQuestion()
+        }
+    }
+    
+    func didFailToLoadData(with error: any Error) {
+        showNetworkError(message: error.localizedDescription)
+    }
     
     @IBOutlet private var questionWord: UILabel!
     @IBOutlet private var counterLabel: UILabel!
     @IBOutlet private var textLabel: UILabel!
     @IBOutlet private var imageView: UIImageView!
+    @IBOutlet weak var activityIndicator: UIActivityIndicatorView!
+    @IBOutlet weak var activityIndicatorBlock: UIView!
+    @IBOutlet weak var noButton: UIButton!
+    @IBOutlet weak var yesButton: UIButton!
     
     private var currentQuestionIndex = 0
     var correctAnswers = 0
+    
+    let df = DateFormatter()
     
     let questionsAmount: Int = 10
     private var questionFactory: QuestionFactoryProtocol?
@@ -22,26 +42,53 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        questionFactory = QuestionFactory(delegate: self)
+        questionFactory = QuestionFactory(moviesLoader: MoviesLoader(), delegate: self)
         alertPresenter = AlertPresenter()
         statisticService = StatisticService()
         
-        questionFactory?.requestNextQuestion()
-        
+        showLoadingIndicator()
+        questionFactory?.loadData()
+                
         // Присвоение правильных шрифтов для Label (косяк Xcode16)
         initFonts()
-        
-        // Отрисовка первого вопроса
-       
         
         imageView.layer.cornerRadius = 20
         imageView.layer.masksToBounds = true
     }
     
+    private func showNetworkError(message: String) {
+        activityIndicator.isHidden = true
+        
+        let model = AlertModel(
+            title: "Ошибка",
+            message: message,
+            buttonText: "Попробовать ещё раз") { [weak self] in
+                guard let self = self else { return }
+                
+                self.currentQuestionIndex = 0
+                self.correctAnswers = 0
+                showLoadingIndicator()
+                questionFactory?.loadData()
+            }
+        
+        guard let alertPresenter else { return }
+        self.present(alertPresenter.show(quiz: model), animated: true, completion: nil)
+    }
+    
+    private func hideLoadingIndicator() {
+        activityIndicator.isHidden = true
+        activityIndicatorBlock.isHidden = true
+    }
+    
+    private func showLoadingIndicator() {
+        activityIndicator.isHidden = false
+        activityIndicator.startAnimating()
+    }
+    
     // MARK: - QuestionFactoryDelegate
 
     func didReceiveNextQuestion(question: QuizQuestion?) {
-        guard let question else {return}
+        guard let question else { return }
         
         currentQuestion = question
         let viewModel = convert(model: question)
@@ -59,7 +106,6 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
         
         statisticService.store(correct: correctAnswers, total: questionsAmount)
         
-        let df = DateFormatter()
         df.dateFormat = "dd.MM.YY hh:mm"
         
         let message = """
@@ -85,8 +131,8 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
     func resetAll() {
         self.currentQuestionIndex = 0
         self.correctAnswers = 0
-        self.hideBorder()
         self.questionFactory?.requestNextQuestion()
+        self.hideBorder()
     }
     
     
@@ -100,11 +146,15 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
         counterLabel.text = step.questionNumber
         textLabel.text = step.question
         imageView.image = step.image
+        hideBorder()
+        enableButtons()
     }
     
     private func convert(model: QuizQuestion) -> QuizStepViewModel {
+        let image = UIImage(data: model.image)
+        
         return QuizStepViewModel(
-            image: UIImage(named: model.image) ?? UIImage(),
+            image: image ?? UIImage(),
             question: model.text,
             questionNumber: "\(currentQuestionIndex + 1)/\(questionsAmount)"
         )
@@ -117,7 +167,6 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
         } else {
             currentQuestionIndex += 1
             questionFactory?.requestNextQuestion()
-            hideBorder()
         }
     }
     
@@ -147,11 +196,23 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
         showAnswerResult(isCorrect: correctAnsver == userAnsver)
     }
     
+    private func disableButtons() {
+        noButton.isEnabled = false
+        yesButton.isEnabled = false
+    }
+    
+    private func enableButtons() {
+        noButton.isEnabled = true
+        yesButton.isEnabled = true
+    }
+    
     @IBAction private func yesButtonClicked(_ sender: UIButton) {
+        disableButtons()
         userAnsverHandler(userAnsver: true)
     }
     
     @IBAction private func noButtonClicked(_ sender: UIButton) {
+        disableButtons()
         userAnsverHandler(userAnsver: false)
     }
     
