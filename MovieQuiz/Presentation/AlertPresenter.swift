@@ -10,18 +10,14 @@ import UIKit
 
 class AlertPresenter: AlertPresenterProtocol {
     
-//    var delegate: AlertPresenterDelegate?
-//    
-//    init(delegate: AlertPresenterDelegate? = nil) {
-//        self.delegate = delegate
-//    }
-    
     func show(quiz result: AlertModel) -> UIAlertController {
         let alert = UIAlertController(
             title: result.title,
             message: result.message,
             preferredStyle: .alert
         )
+        
+        alert.view.accessibilityIdentifier = "Game results"
         
         let action = UIAlertAction(title: result.buttonText, style: .default) { _ in
             result.completion()

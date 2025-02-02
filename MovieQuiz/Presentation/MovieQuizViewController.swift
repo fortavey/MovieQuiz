@@ -1,21 +1,7 @@
 import Foundation
 import UIKit
 
-final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, AlertPresenterDelegate {
-    func didLoadDataFromServer() {
-        guard let questionFactory else { return }
-        if questionFactory.fullMoviesResponseObject?.errorMessage != "" {
-            activityIndicator.isHidden = true
-            showNetworkError(message: questionFactory.fullMoviesResponseObject?.errorMessage ?? "Ошибка сервера")
-        }else {
-            hideLoadingIndicator()
-            questionFactory.requestNextQuestion()
-        }
-    }
-    
-    func didFailToLoadData(with error: any Error) {
-        showNetworkError(message: error.localizedDescription)
-    }
+final class MovieQuizViewController: UIViewController, AlertPresenterDelegate, MovieQuizViewControllerProtocol {
     
     @IBOutlet private var questionWord: UILabel!
     @IBOutlet private var counterLabel: UILabel!
@@ -26,37 +12,51 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
     @IBOutlet weak var noButton: UIButton!
     @IBOutlet weak var yesButton: UIButton!
     
-    private let presenter = MovieQuizPresenter()
-    
-    var correctAnswers = 0
-    
-    let df = DateFormatter()
-    
-    private var questionFactory: QuestionFactoryProtocol?
-    private var currentQuestion: QuizQuestion?
-    
+    private var presenter: MovieQuizPresenter?
+    private let df = DateFormatter()
     private var alertPresenter: AlertPresenterProtocol?
-    private var statisticService: StatisticServiceProtocol?
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        questionFactory = QuestionFactory(moviesLoader: MoviesLoader(), delegate: self)
+        presenter = MovieQuizPresenter(viewController: self)
         alertPresenter = AlertPresenter()
-        statisticService = StatisticService()
-        
+
+        startApp()
+    }
+    
+    @IBAction private func yesButtonClicked(_ sender: UIButton) {
+        presenter?.yesButtonClicked(sender)
+    }
+    
+    @IBAction private func noButtonClicked(_ sender: UIButton) {
+        presenter?.noButtonClicked(sender)
+    }
+    
+    private func startApp() {
         showLoadingIndicator()
-        questionFactory?.loadData()
-                
-        // Присвоение правильных шрифтов для Label (косяк Xcode16)
         initFonts()
-        
         imageView.layer.cornerRadius = 20
         imageView.layer.masksToBounds = true
     }
     
-    private func showNetworkError(message: String) {
+    private func initFonts() {
+        questionWord.font = UIFont(name: "YSDisplay-Medium", size: 20)
+        counterLabel.font = UIFont(name: "YSDisplay-Medium", size: 20)
+        textLabel.font = UIFont(name: "YSDisplay-Bold", size: 23)
+    }
+    
+    private func enableButtons() {
+        noButton.isEnabled = true
+        yesButton.isEnabled = true
+    }
+    
+    func hideIndicator() {
+        activityIndicator.isHidden = true
+    }
+    
+    func showNetworkError(message: String) {
         activityIndicator.isHidden = true
         
         let model = AlertModel(
@@ -65,54 +65,38 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
             buttonText: "Попробовать ещё раз") { [weak self] in
                 guard let self = self else { return }
                 
-                presenter.resetQuestionIndex()
-                self.correctAnswers = 0
+                presenter?.restartGame()
                 showLoadingIndicator()
-                questionFactory?.loadData()
+                presenter?.questionFactory?.loadData()
             }
         
         guard let alertPresenter else { return }
         self.present(alertPresenter.show(quiz: model), animated: true, completion: nil)
     }
     
-    private func hideLoadingIndicator() {
+    func hideLoadingIndicator() {
         activityIndicator.isHidden = true
         activityIndicatorBlock.isHidden = true
     }
     
-    private func showLoadingIndicator() {
+    func showLoadingIndicator() {
         activityIndicator.isHidden = false
         activityIndicator.startAnimating()
     }
     
-    // MARK: - QuestionFactoryDelegate
-
-    func didReceiveNextQuestion(question: QuizQuestion?) {
-        guard let question else { return }
-        
-        currentQuestion = question
-        let viewModel = presenter.convert(model: question)
-        
-        DispatchQueue.main.async { [weak self] in
-            self?.show(quiz: viewModel)
-        }
-    }
-    
-    
     // MARK: - Alert
     
     func showAlert() {
-        guard let statisticService else { return }
-        
-        statisticService.store(correct: correctAnswers, total: presenter.questionsAmount)
+        guard let presenter else { return }
+        presenter.statisticService.store(correct: presenter.correctAnswers, total: presenter.questionsAmount)
         
         df.dateFormat = "dd.MM.YY hh:mm"
         
         let message = """
-                Ваш результат \(correctAnswers)/\(presenter.questionsAmount)
-                Количество сыгранных квизов: \(statisticService.gamesCount)
-                Рекорд: \(statisticService.bestGame.correct)/\(presenter.questionsAmount) (\(df.string(from: statisticService.bestGame.date)))
-                Средняя точность: \(String(format: "%.2f", statisticService.totalAccuracy))%
+                Ваш результат \(presenter.correctAnswers)/\(presenter.questionsAmount)
+                Количество сыгранных квизов: \(presenter.statisticService.gamesCount)
+                Рекорд: \(presenter.statisticService.bestGame.correct)/\(presenter.questionsAmount) (\(df.string(from: presenter.statisticService.bestGame.date)))
+                Средняя точность: \(String(format: "%.2f", presenter.statisticService.totalAccuracy))%
             """
         
         let model = AlertModel(
@@ -120,7 +104,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
             message: message,
             buttonText: "Сыграть ещё раз",
             completion: {
-                self.resetAll()
+                self.presenter?.resetAll()
             }
         )
         
@@ -128,21 +112,7 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
         self.present(alertPresenter.show(quiz: model), animated: true, completion: nil)
     }
     
-    func resetAll() {
-        presenter.resetQuestionIndex()
-        self.correctAnswers = 0
-        self.questionFactory?.requestNextQuestion()
-        self.hideBorder()
-    }
-    
-    
-    private func initFonts() {
-        questionWord.font = UIFont(name: "YSDisplay-Medium", size: 20)
-        counterLabel.font = UIFont(name: "YSDisplay-Medium", size: 20)
-        textLabel.font = UIFont(name: "YSDisplay-Bold", size: 23)
-    }
-    
-    private func show(quiz step: QuizStepViewModel) {
+    func show(quiz step: QuizStepViewModel) {
         counterLabel.text = step.questionNumber
         textLabel.text = step.question
         imageView.image = step.image
@@ -150,62 +120,24 @@ final class MovieQuizViewController: UIViewController, QuestionFactoryDelegate, 
         enableButtons()
     }
     
-   
- 
-    
-    private func showNextQuestionOrResults() {
-        if presenter.isLastQuestion() {
-            self.showAlert()
-        } else {
-            presenter.switchToNextQuestion()
-            questionFactory?.requestNextQuestion()
-        }
-    }
-    
-    private func hideBorder() {
+    func hideBorder() {
         imageView.layer.borderWidth = 0
     }
     
-    private func changeBorder(isCorrect: Bool) {
+    func changeBorder(isCorrect: Bool) {
         imageView.layer.borderWidth = 8
         imageView.layer.borderColor = isCorrect ? UIColor.ypGreen.cgColor : UIColor.ypRed.cgColor
     }
     
-    private func showAnswerResult(isCorrect: Bool) {
-        if isCorrect {
-            correctAnswers += 1
-        }
-        changeBorder(isCorrect: isCorrect)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {[weak self] in
-            guard let self else { return }
-            self.showNextQuestionOrResults()
-        }
-    }
     
-    private func userAnsverHandler(userAnsver: Bool) {
-        guard let currentQuestion else {return}
-        let correctAnsver: Bool = currentQuestion.correctAnswer
-        showAnswerResult(isCorrect: correctAnsver == userAnsver)
-    }
-    
-    private func disableButtons() {
+    func disableButtons() {
         noButton.isEnabled = false
         yesButton.isEnabled = false
     }
     
-    private func enableButtons() {
-        noButton.isEnabled = true
-        yesButton.isEnabled = true
+    func resetAll() {
+        guard let presenter else { return }
+        presenter.resetAll()
+        hideBorder()
     }
-    
-    @IBAction private func yesButtonClicked(_ sender: UIButton) {
-        disableButtons()
-        userAnsverHandler(userAnsver: true)
-    }
-    
-    @IBAction private func noButtonClicked(_ sender: UIButton) {
-        disableButtons()
-        userAnsverHandler(userAnsver: false)
-    }
-    
 }
